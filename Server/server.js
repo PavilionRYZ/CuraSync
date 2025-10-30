@@ -7,12 +7,14 @@ const cookieParser = require("cookie-parser");
 const connectDB = require("./src/config/database");
 const errorHandler = require("./src/middlewares/errorHandler");
 const dotenv = require("dotenv");
+
 // Import routes
 const authRoutes = require("./src/routes/authRoutes");
 const clinicRoutes = require("./src/routes/clinicRoutes");
 const doctorRoutes = require("./src/routes/doctorRoutes");
 const availabilityRoutes = require("./src/routes/availabilityRoutes");
 const appointmentRoutes = require("./src/routes/appointmentRoutes");
+const aiRoutes = require("./src/routes/aiRoutes");
 
 const app = express();
 dotenv.config();
@@ -23,9 +25,9 @@ connectDB();
 // Security middleware
 app.use(helmet());
 
-// Body parser
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Body parser - ✅ INCREASED LIMIT for image uploads
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ limit: "10mb", extended: true }));
 app.use(cookieParser());
 
 // CORS
@@ -36,10 +38,10 @@ app.use(
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
     allowedHeaders: ["Content-Type", "Authorization"],
     cookie: {
-      secure: process.env.NODE_ENV === "development",
+      secure: process.env.NODE_ENV === "production",
       maxAge: 7 * 24 * 60 * 60 * 1000,
       httpOnly: true,
-      sameSite: process.env.NODE_ENV === "development" ? "none" : "lax",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
     },
   })
 );
@@ -58,10 +60,26 @@ const limiter = rateLimit({
 
 app.use("/api/", limiter);
 
-// Health check
+// Health check - ✅ ENHANCED
+app.get("/", (req, res) => {
+  res.json({
+    success: true,
+    message: "🏥 CuraSync API is running",
+    version: "1.0.0",
+    environment: process.env.NODE_ENV,
+    timestamp: new Date().toISOString(),
+  });
+});
+
 app.get("/health", (req, res) => {
   res.json({
+    success: true,
     status: "OK",
+    database:
+      require("mongoose").connection.readyState === 1
+        ? "Connected"
+        : "Disconnected",
+    uptime: process.uptime(),
     timestamp: new Date().toISOString(),
   });
 });
@@ -72,6 +90,7 @@ app.use("/api/v1/clinics", clinicRoutes);
 app.use("/api/v1/doctors", doctorRoutes);
 app.use("/api/v1/availability", availabilityRoutes);
 app.use("/api/v1/appointments", appointmentRoutes);
+app.use("/api/v1/ai", aiRoutes);
 
 // 404 handler
 app.use((req, res) => {
@@ -82,24 +101,36 @@ app.use((req, res) => {
 });
 
 // Error handler
-app.use(errorHandler);
+// app.use(errorHandler);
 
 // Start server
 const PORT = process.env.PORT || 5001;
 const server = app.listen(PORT, () => {
-  console.log(`http://localhost:${PORT}`);
-  console.log(`Server running on port ${PORT} in ${process.env.NODE_ENV} mode`);
+  console.log(`
+╔════════════════════════════════════════════════════════════╗
+║                                                           
+║  🏥  CuraSync API Server Running                          
+║                                                           
+║  📍 Port: ${PORT}                                         
+║  🌍 Environment: ${process.env.NODE_ENV || "development"} 
+║  🔗 URL: http://localhost:${PORT}                         
+║  📅 Started: ${new Date().toLocaleTimeString()}           
+║                                                           
+╚════════════════════════════════════════════════════════════╝
+  `);
 });
 
 // Graceful shutdown
 process.on("uncaughtException", (err) => {
-  console.error("Uncaught Exception:", err);
+  console.error("❌ Uncaught Exception:", err);
   process.exit(1);
 });
 
 process.on("unhandledRejection", (err) => {
-  console.error("Unhandled Rejection:", err);
+  console.error("❌ Unhandled Rejection:", err);
   server.close(() => {
     process.exit(1);
   });
 });
+
+module.exports = app;

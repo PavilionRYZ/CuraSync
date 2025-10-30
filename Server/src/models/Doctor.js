@@ -14,7 +14,7 @@ const doctorSchema = new mongoose.Schema(
         type: String,
         required: [true, "At least one specialization is required"],
         trim: true,
-        lowercase: true, // ✅ Normalize to lowercase for consistent queries
+        lowercase: true,
       },
     ],
     qualifications: [
@@ -50,15 +50,25 @@ const doctorSchema = new mongoose.Schema(
       type: String,
       required: [true, "License number is required"],
       unique: true,
-      uppercase: true, // ✅ Normalize to uppercase
+      uppercase: true,
       trim: true,
       index: true,
       validate: {
         validator: function (v) {
-          return /^[A-Z0-9-]+$/.test(v); // Only alphanumeric and hyphens
+          return /^[A-Z0-9-]+$/.test(v);
         },
         message:
           "License number can only contain letters, numbers, and hyphens",
+      },
+    },
+    profileImage: {
+      url: {
+        type: String,
+        required: [true, "Profile image is required"],
+      },
+      publicId: {
+        type: String,
+        required: true,
       },
     },
     bio: {
@@ -86,10 +96,8 @@ const doctorSchema = new mongoose.Schema(
     isVerified: {
       type: Boolean,
       default: false,
-      index: true, // ✅ Index for filtering verified doctors
+      index: true,
     },
-
-    // ✅ NEW: Admin audit fields for verification
     verifiedAt: {
       type: Date,
       default: null,
@@ -99,13 +107,34 @@ const doctorSchema = new mongoose.Schema(
       ref: "User",
       default: null,
     },
-
-    // ✅ NEW: Soft delete / status field
     isActive: {
       type: Boolean,
       default: true,
       index: true,
     },
+    languages: [String],
+    availableSlots: [
+      {
+        dayOfWeek: {
+          type: String,
+          enum: [
+            "Monday",
+            "Tuesday",
+            "Wednesday",
+            "Thursday",
+            "Friday",
+            "Saturday",
+            "Sunday",
+          ],
+        },
+        startTime: String,
+        endTime: String,
+        maxPatients: {
+          type: Number,
+          default: 20,
+        },
+      },
+    ],
   },
   {
     timestamps: true,
@@ -114,14 +143,12 @@ const doctorSchema = new mongoose.Schema(
   }
 );
 
-// ✅ Indexes for fast lookups
-// doctorSchema.index({ userId: 1 });
+// Indexes for fast lookups
 doctorSchema.index({ specialization: 1 });
-// doctorSchema.index({ licenseNumber: 1 });
-doctorSchema.index({ isVerified: 1, rating: -1 }); 
+doctorSchema.index({ isVerified: 1, rating: -1 });
 doctorSchema.index({ isActive: 1, isVerified: 1 });
 
-// ✅ Text index for search functionality
+// Text index for search functionality
 doctorSchema.index(
   {
     bio: "text",
@@ -135,19 +162,17 @@ doctorSchema.index(
   }
 );
 
-// ✅ Virtual field for populated user name
+// Virtual field for populated user name
 doctorSchema.virtual("fullName").get(function () {
   return this.userId && this.userId.name ? this.userId.name : undefined;
 });
 
-// ✅ Pre-save middleware: Auto-set verifiedAt when verified
+// Pre-save middleware
 doctorSchema.pre("save", function (next) {
-  // Set verifiedAt when isVerified changes to true
   if (this.isModified("isVerified") && this.isVerified && !this.verifiedAt) {
     this.verifiedAt = new Date();
   }
 
-  // Clear verifiedAt and verifiedBy when unverified
   if (this.isModified("isVerified") && !this.isVerified) {
     this.verifiedAt = null;
     this.verifiedBy = null;
@@ -156,12 +181,12 @@ doctorSchema.pre("save", function (next) {
   next();
 });
 
-// ✅ Instance method: Check if doctor can practice
+// Instance method: Check if doctor can practice
 doctorSchema.methods.canPractice = function () {
   return this.isActive && this.isVerified;
 };
 
-// ✅ Static method: Find verified doctors
+// Static method: Find verified doctors
 doctorSchema.statics.findVerified = function (filters = {}) {
   return this.find({
     isVerified: true,
@@ -170,7 +195,7 @@ doctorSchema.statics.findVerified = function (filters = {}) {
   }).populate("userId", "name email phone");
 };
 
-// ✅ Static method: Search doctors
+// Static method: Search doctors
 doctorSchema.statics.searchDoctors = function (searchText) {
   return this.find(
     { $text: { $search: searchText }, isActive: true },

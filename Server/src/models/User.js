@@ -38,6 +38,11 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    isVerified: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
     profilePicture: String,
     dateOfBirth: Date,
     address: {
@@ -46,9 +51,35 @@ const userSchema = new mongoose.Schema(
       state: String,
       zipCode: String,
     },
+    bloodGroup: {
+      type: String,
+      enum: ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"],
+    },
+    gender: {
+      type: String,
+      enum: ["male", "female", "other"],
+    },
+    medicalHistory: [
+      {
+        condition: String,
+        diagnosedDate: Date,
+        notes: String,
+      },
+    ],
+    allergies: [String],
+    emergencyContact: {
+      name: String,
+      relationship: String,
+      phone: String,
+    },
   },
   {
-    timestamps: true,
+    timestamps: {
+      currentTime: () =>
+        new Date(
+          new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+        ),
+    },
   }
 );
 
