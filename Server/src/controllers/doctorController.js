@@ -3,7 +3,9 @@ const User = require("../models/User");
 const DoctorClinicAffiliation = require("../models/DoctorClinicAffiliation");
 const ResponseHandler = require("../utils/responseHandler");
 const { DEFAULT_PAGE_SIZE, USER_ROLES } = require("../config/constants");
+const { cloudinary } = require("../config/cloudinary");
 
+//👍
 exports.registerDoctor = async (req, res, next) => {
   try {
     // Verify admin authorization
@@ -26,7 +28,13 @@ exports.registerDoctor = async (req, res, next) => {
       licenseNumber,
       bio,
       consultationFee,
+      languages,
     } = req.body;
+
+    // ✅ Check if file is uploaded
+    if (!req.file) {
+      return ResponseHandler.error(res, "Profile image is required", 400);
+    }
 
     // Validate required fields
     const requiredFields = [
@@ -51,12 +59,20 @@ exports.registerDoctor = async (req, res, next) => {
     // Check if email already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
+      // Delete uploaded image if user already exists
+      if (req.file && req.file.public_id) {
+        await cloudinary.uploader.destroy(req.file.public_id);
+      }
       return ResponseHandler.error(res, "Email already exists", 409);
     }
 
     // Check if license number already exists
     const existingLicense = await Doctor.findOne({ licenseNumber });
     if (existingLicense) {
+      // Delete uploaded image if license already exists
+      if (req.file && req.file.public_id) {
+        await cloudinary.uploader.destroy(req.file.public_id);
+      }
       return ResponseHandler.error(res, "License number already exists", 409);
     }
 
@@ -67,8 +83,15 @@ exports.registerDoctor = async (req, res, next) => {
       phone,
       password,
       role: USER_ROLES.DOCTOR,
+      isVerified: true, // Doctors created by admin are pre-verified
       isActive: true,
     });
+
+    // ✅ Extract image data from multer/Cloudinary
+    const profileImage = {
+      url: req.file.secure_url, // Cloudinary secure URL
+      publicId: req.file.public_id, // For future deletion
+    };
 
     // Create doctor profile
     const doctor = await Doctor.create({
@@ -77,10 +100,16 @@ exports.registerDoctor = async (req, res, next) => {
         ? specialization
         : [specialization],
       qualifications: qualifications || [],
-      experience,
-      licenseNumber,
+      experience: parseInt(experience),
+      licenseNumber: licenseNumber.toUpperCase(),
+      profileImage, // ✅ Add image data
       bio: bio || "",
       consultationFee: consultationFee || 0,
+      languages: languages
+        ? Array.isArray(languages)
+          ? languages
+          : [languages]
+        : [],
       isVerified: req.body.isVerified === true,
       verifiedBy: req.body.isVerified === true ? req.user._id : null,
       verifiedAt: req.body.isVerified === true ? new Date() : null,
@@ -90,6 +119,7 @@ exports.registerDoctor = async (req, res, next) => {
     await doctor.populate("userId", "name email phone");
 
     console.log(`✅ Doctor registered by admin: ${req.user.email}`);
+    console.log(`✅ Profile image uploaded: ${profileImage.url}`);
 
     return ResponseHandler.success(
       res,
@@ -103,22 +133,94 @@ exports.registerDoctor = async (req, res, next) => {
         },
         doctor,
       },
-      "Doctor registered successfully",
+      "Doctor registered successfully with profile image",
       201
     );
   } catch (error) {
     console.error("❌ Doctor registration error:", error);
 
+    // Delete uploaded image on error
+    if (req.file && req.file.public_id) {
+      try {
+        await cloudinary.uploader.destroy(req.file.public_id);
+        console.log("✅ Uploaded image deleted on error");
+      } catch (deleteError) {
+        console.error("❌ Error deleting uploaded image:", deleteError);
+      }
+    }
+
     // Handle duplicate key errors
     if (error.code === 11000) {
       const field = Object.keys(error.keyPattern || {});
-      return ResponseHandler.error(res, `${field} already exists`, 409);
+      return ResponseHandler.error(
+        res,
+        `${field.charAt(0).toUpperCase() + field.slice(1)} already exists`,
+        409
+      );
     }
 
     next(error);
   }
 };
+//👍
+exports.updateDoctorImage = async (req, res, next) => {
+  try {
+    const doctor = await Doctor.findOne({ userId: req.user._id });
 
+    if (!doctor) {
+      if (req.file && req.file.public_id) {
+        await cloudinary.uploader.destroy(req.file.public_id);
+      }
+      return ResponseHandler.error(res, "Doctor profile not found", 404);
+    }
+
+    if (!req.file) {
+      return ResponseHandler.error(res, "Image is required", 400);
+    }
+
+    // Delete old image from Cloudinary
+    if (doctor.profileImage && doctor.profileImage.publicId) {
+      try {
+        await cloudinary.uploader.destroy(doctor.profileImage.publicId);
+        console.log("✅ Old image deleted from Cloudinary");
+      } catch (deleteError) {
+        console.error("❌ Error deleting old image:", deleteError);
+        // Continue even if delete fails
+      }
+    }
+
+    // Update with new image
+    doctor.profileImage = {
+      url: req.file.secure_url,
+      publicId: req.file.public_id,
+    };
+
+    await doctor.save();
+    await doctor.populate("userId", "name email phone");
+
+    console.log(`✅ Doctor profile image updated: ${doctor._id}`);
+
+    return ResponseHandler.success(
+      res,
+      doctor,
+      "Profile image updated successfully"
+    );
+  } catch (error) {
+    console.error("❌ Update doctor image error:", error);
+
+    // Delete uploaded image on error
+    if (req.file && req.file.public_id) {
+      try {
+        await cloudinary.uploader.destroy(req.file.public_id);
+      } catch (deleteError) {
+        console.error("❌ Error deleting uploaded image:", deleteError);
+      }
+    }
+
+    next(error);
+  }
+};
+//👍
 exports.getAllDoctors = async (req, res, next) => {
   try {
     const {
@@ -190,7 +292,7 @@ exports.getAllDoctors = async (req, res, next) => {
     next(error);
   }
 };
-
+//👍
 exports.getDoctorById = async (req, res, next) => {
   try {
     const doctor = await Doctor.findById(req.params.id).populate(
@@ -223,7 +325,7 @@ exports.getDoctorById = async (req, res, next) => {
     next(error);
   }
 };
-
+//👍
 exports.updateDoctorProfile = async (req, res, next) => {
   try {
     if (!req.user || req.user.role !== USER_ROLES.ADMIN) {
@@ -285,7 +387,7 @@ exports.updateDoctorProfile = async (req, res, next) => {
     next(error);
   }
 };
-
+//👍
 exports.getMyProfile = async (req, res, next) => {
   try {
     const doctor = await Doctor.findOne({ userId: req.user._id }).populate(
@@ -317,7 +419,7 @@ exports.getMyProfile = async (req, res, next) => {
     next(error);
   }
 };
-
+//👍
 exports.createAffiliation = async (req, res, next) => {
   try {
     const affiliation = await DoctorClinicAffiliation.create(req.body);
@@ -338,9 +440,9 @@ exports.createAffiliation = async (req, res, next) => {
     next(error);
   }
 };
-
+//👍
 exports.getClinicDoctors = async (req, res, next) => {
-  try { 
+  try {
     const { specialization } = req.query;
 
     const query = {
@@ -385,7 +487,7 @@ exports.getClinicDoctors = async (req, res, next) => {
     next(error);
   }
 };
-
+//👍
 exports.updateAffiliation = async (req, res, next) => {
   try {
     const affiliation = await DoctorClinicAffiliation.findByIdAndUpdate(
@@ -412,7 +514,7 @@ exports.updateAffiliation = async (req, res, next) => {
     next(error);
   }
 };
-
+//👍
 exports.deleteAffiliation = async (req, res, next) => {
   try {
     const affiliation = await DoctorClinicAffiliation.findByIdAndUpdate(
@@ -434,6 +536,41 @@ exports.deleteAffiliation = async (req, res, next) => {
     );
   } catch (error) {
     console.error("❌ Delete affiliation error:", error);
+    next(error);
+  }
+};
+//👍
+exports.deactivateDoctor = async (req, res, next) => {
+  try {
+    if (!req.user || req.user.role !== USER_ROLES.ADMIN) {
+      return ResponseHandler.error(
+        res,
+        "Unauthorized. Only admins can deactivate doctors.",
+        403
+      );
+    }
+
+    const { doctorId } = req.params;
+    const { reason } = req.body;
+
+    const doctor = await Doctor.findById(doctorId);
+
+    if (!doctor) {
+      return ResponseHandler.error(res, "Doctor not found", 404);
+    }
+
+    doctor.isActive = false;
+    await doctor.save();
+
+    console.log(`✅ Doctor deactivated: ${doctor._id} - Reason: ${reason}`);
+
+    return ResponseHandler.success(
+      res,
+      doctor,
+      "Doctor deactivated successfully"
+    );
+  } catch (error) {
+    console.error("❌ Deactivate doctor error:", error);
     next(error);
   }
 };

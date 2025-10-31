@@ -20,19 +20,27 @@ const storage = new CloudinaryStorage({
       { quality: "auto:good" },
     ],
     format: "jpg",
+    resource_type: "auto",
   },
 });
 
 const upload = multer({
   storage: storage,
   limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB
+    fileSize: 5 * 1024 * 1024,
   },
   fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith("image/")) {
+    const allowedMimes = ["image/jpeg", "image/png", "image/webp"];
+
+    if (allowedMimes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error("Only image files are allowed!"), false);
+      cb(
+        new Error(
+          `Invalid file type. Only JPEG, PNG, and WebP are allowed. Received: ${file.mimetype}`
+        ),
+        false
+      );
     }
   },
 });

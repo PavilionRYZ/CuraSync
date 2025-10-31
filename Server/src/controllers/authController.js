@@ -296,7 +296,7 @@ exports.checkRegistrationStatus = async (req, res, next) => {
   }
 };
 
-// Keep existing methods (createAdmin, login, getProfile, etc.)
+// Create Admin
 exports.createAdmin = async (req, res, next) => {
   try {
     // Verify admin authorization
@@ -355,7 +355,7 @@ exports.createAdmin = async (req, res, next) => {
   }
 };
 
-// ✅ Login - No changes needed, already checks isVerified
+// Login
 exports.login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
@@ -371,11 +371,13 @@ exports.login = async (req, res, next) => {
     // Check if user exists
     const user = await User.findOne({ email }).select("+password");
     if (!user) {
-      return ResponseHandler.error(res, "Invalid email or password", 401);
+      console.log("❌ User not found");
+      return ResponseHandler.error(res, "User Dosent exists", 401);
     }
 
     // Check if email is verified
     if (!user.isVerified) {
+      console.log("❌ User not verified");
       return ResponseHandler.error(
         res,
         "Please verify your email before logging in.",
@@ -385,6 +387,7 @@ exports.login = async (req, res, next) => {
 
     // Check if account is active
     if (!user.isActive) {
+      console.log("❌ User inactive");
       return ResponseHandler.error(
         res,
         "Your account is inactive. Please contact support.",
@@ -394,6 +397,7 @@ exports.login = async (req, res, next) => {
 
     // Verify password
     const isPasswordCorrect = await user.comparePassword(password);
+    console.log("Password match:", isPasswordCorrect);
     if (!isPasswordCorrect) {
       return ResponseHandler.error(res, "Invalid email or password", 401);
     }
