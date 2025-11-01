@@ -9,7 +9,7 @@ const OTP = require("../models/OTP");
 // Register - Store in TempUser and send OTP
 exports.register = async (req, res, next) => {
   try {
-    const { role, email } = req.body;
+    const { role, email, phone } = req.body;
 
     // Only allow patient role in public registration
     if (role && role !== USER_ROLES.PATIENT) {
@@ -23,43 +23,62 @@ exports.register = async (req, res, next) => {
     // Force role to patient
     req.body.role = USER_ROLES.PATIENT;
 
-    // Check if user already exists in User collection
-    const existingUser = await User.findOne({ email });
+    // --- ✅ Check if email or phone already exists in User collection ---
+    const existingUser = await User.findOne({
+      $or: [{ email }, { phone }],
+    });
+
     if (existingUser) {
-      return ResponseHandler.error(
-        res,
-        "Email already registered. Please login.",
-        409
-      );
+      if (existingUser.email === email) {
+        return ResponseHandler.error(
+          res,
+          "Email already registered. Please login.",
+          409
+        );
+      } else if (existingUser.phone === phone) {
+        return ResponseHandler.error(
+          res,
+          "Phone number already registered. Please login.",
+          409
+        );
+      }
     }
 
-    // Check if email is already in TempUser (pending verification)
-    const existingTempUser = await TempUser.findOne({ email });
+    // --- ✅ Check if email or phone already exists in TempUser (pending verification) ---
+    const existingTempUser = await TempUser.findOne({
+      $or: [{ email }, { phone }],
+    });
+
     if (existingTempUser) {
       // Delete existing temp user to allow re-registration
-      await TempUser.deleteOne({ email });
+      await TempUser.deleteOne({
+        $or: [{ email }, { phone }],
+      });
     }
 
-    // Generate OTP
+    // --- Generate OTP and expiry ---
     const otp = generateOTP();
     const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-    // Create temporary user with OTP
+    // --- Create temporary user with OTP ---
     const tempUser = await TempUser.create({
       ...req.body,
       otp,
       otpExpiry,
     });
 
-    // Send OTP email
+    // --- Send OTP email ---
     await sendOTPEmail(email, otp, "registration");
 
-    console.log(`✅ Registration initiated for: ${email}. OTP sent.`);
+    console.log(
+      `✅ Registration initiated for: ${email} (${phone}). OTP sent.`
+    );
 
     return ResponseHandler.success(
       res,
       {
         email,
+        phone,
         message:
           "Registration initiated! Please check your email for OTP verification.",
         expiresIn: "10 minutes",
