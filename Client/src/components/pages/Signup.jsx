@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { motion } from 'framer-motion';
@@ -153,7 +153,7 @@ const Signup = () => {
         setRegistrationAttempted(false);
     };
 
-    // ✅ NEW: Handle going back to signup from verify-otp
+    //Handle going back to signup from verify-otp
     const handleRetrySignup = () => {
         dispatch(clearRegistrationData());
         setStep(1);
@@ -229,7 +229,7 @@ const Signup = () => {
                     ))}
                 </motion.div>
 
-                {/* ✅ NEW: Error Banner with Retry Option */}
+                {/*Error Banner with Retry Option */}
                 {error && registrationAttempted && (
                     <motion.div
                         initial={{ opacity: 0, y: -10 }}
@@ -248,7 +248,7 @@ const Signup = () => {
                                     </p>
                                 </div>
                             </div>
-                            {/* ✅ NEW: Retry Button */}
+                            {/*Retry Button */}
                             <motion.button
                                 whileHover={{ scale: 1.05 }}
                                 whileTap={{ scale: 0.95 }}

@@ -12,7 +12,7 @@ router.route("/:id").get(clinicController.getClinicById);
 
 // Admin routes
 router
-  .route("/clinic/create")
+  .route("/create/clinic")
   .post(
     protect,
     authorize("admin"),

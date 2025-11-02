@@ -5,11 +5,15 @@ const ResponseHandler = require("../utils/responseHandler");
 const { DEFAULT_PAGE_SIZE, USER_ROLES } = require("../config/constants");
 const { cloudinary } = require("../config/cloudinary");
 
-//👍
+// Register Doctor
 exports.registerDoctor = async (req, res, next) => {
   try {
     // Verify admin authorization
     if (!req.user || req.user.role !== USER_ROLES.ADMIN) {
+      // Delete uploaded image if unauthorized
+      if (req.file && req.file.public_id) {
+        await cloudinary.uploader.destroy(req.file.public_id);
+      }
       return ResponseHandler.error(
         res,
         "Unauthorized. Only admins can register doctors.",
@@ -31,9 +35,27 @@ exports.registerDoctor = async (req, res, next) => {
       languages,
     } = req.body;
 
+    // ✅ DEBUG: Log file info
+    console.log("📁 File received:", req.file);
+    console.log("📦 Body data:", { name, email, phone, specialization });
+
     // ✅ Check if file is uploaded
     if (!req.file) {
+      console.error("❌ No file uploaded");
       return ResponseHandler.error(res, "Profile image is required", 400);
+    }
+
+    // ✅ Verify file has Cloudinary data
+    if (!req.file.path || !req.file.filename) {
+      console.error(
+        "❌ Cloudinary upload failed - missing file data:",
+        req.file
+      );
+      return ResponseHandler.error(
+        res,
+        "Image upload failed. Please try again.",
+        400
+      );
     }
 
     // Validate required fields
@@ -49,6 +71,10 @@ exports.registerDoctor = async (req, res, next) => {
     const missingFields = requiredFields.filter((field) => !req.body[field]);
 
     if (missingFields.length > 0) {
+      // Delete uploaded image if validation fails
+      if (req.file.public_id) {
+        await cloudinary.uploader.destroy(req.file.public_id);
+      }
       return ResponseHandler.error(
         res,
         `Missing required fields: ${missingFields.join(", ")}`,
@@ -60,9 +86,10 @@ exports.registerDoctor = async (req, res, next) => {
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       // Delete uploaded image if user already exists
-      if (req.file && req.file.public_id) {
+      if (req.file.public_id) {
         await cloudinary.uploader.destroy(req.file.public_id);
       }
+      console.error("❌ Email already exists:", email);
       return ResponseHandler.error(res, "Email already exists", 409);
     }
 
@@ -70,9 +97,10 @@ exports.registerDoctor = async (req, res, next) => {
     const existingLicense = await Doctor.findOne({ licenseNumber });
     if (existingLicense) {
       // Delete uploaded image if license already exists
-      if (req.file && req.file.public_id) {
+      if (req.file.public_id) {
         await cloudinary.uploader.destroy(req.file.public_id);
       }
+      console.error("❌ License number already exists:", licenseNumber);
       return ResponseHandler.error(res, "License number already exists", 409);
     }
 
@@ -83,43 +111,68 @@ exports.registerDoctor = async (req, res, next) => {
       phone,
       password,
       role: USER_ROLES.DOCTOR,
-      isVerified: true, // Doctors created by admin are pre-verified
+      isVerified: true,
       isActive: true,
     });
 
-    // ✅ Extract image data from multer/Cloudinary
+    // ✅ FIXED: Extract image data from Cloudinary
     const profileImage = {
-      url: req.file.secure_url, // Cloudinary secure URL
-      publicId: req.file.public_id, // For future deletion
+      url: req.file.path, // ✅ Cloudinary secure URL
+      publicId: req.file.filename, // ✅ Cloudinary public_id for deletion
     };
+
+    console.log("✅ Profile image data:", profileImage);
+
+    // Parse specializations
+    let specializations = [];
+    if (Array.isArray(specialization)) {
+      specializations = specialization.map((s) => s.trim().toLowerCase());
+    } else if (typeof specialization === "string") {
+      try {
+        specializations = JSON.parse(specialization).map((s) =>
+          s.trim().toLowerCase()
+        );
+      } catch {
+        specializations = [specialization.trim().toLowerCase()];
+      }
+    }
+
+    // Parse qualifications
+    let qualifications_data = [];
+    if (qualifications) {
+      if (typeof qualifications === "string") {
+        qualifications_data = JSON.parse(qualifications);
+      } else if (Array.isArray(qualifications)) {
+        qualifications_data = qualifications;
+      }
+    }
 
     // Create doctor profile
     const doctor = await Doctor.create({
       userId: user._id,
-      specialization: Array.isArray(specialization)
-        ? specialization
-        : [specialization],
-      qualifications: qualifications || [],
+      specialization: specializations,
+      qualifications: qualifications_data || [],
       experience: parseInt(experience),
       licenseNumber: licenseNumber.toUpperCase(),
-      profileImage, // ✅ Add image data
+      profileImage, // ✅ Profile image with url and publicId
       bio: bio || "",
-      consultationFee: consultationFee || 0,
-      languages: languages
-        ? Array.isArray(languages)
-          ? languages
-          : [languages]
+      consultationFee: parseFloat(consultationFee) || 0,
+      languages: Array.isArray(languages)
+        ? languages
+        : languages
+        ? [languages]
         : [],
-      isVerified: req.body.isVerified === true,
-      verifiedBy: req.body.isVerified === true ? req.user._id : null,
-      verifiedAt: req.body.isVerified === true ? new Date() : null,
+      isVerified:
+        req.body.isVerified === "true" || req.body.isVerified === true,
+      verifiedBy: req.body.isVerified ? req.user._id : null,
+      verifiedAt: req.body.isVerified ? new Date() : null,
     });
 
     // Populate user details
     await doctor.populate("userId", "name email phone");
 
-    console.log(`✅ Doctor registered by admin: ${req.user.email}`);
-    console.log(`✅ Profile image uploaded: ${profileImage.url}`);
+    console.log(`✅ Doctor registered successfully: ${doctor._id}`);
+    console.log(`✅ Profile image uploaded to Cloudinary: ${profileImage.url}`);
 
     return ResponseHandler.success(
       res,
@@ -162,7 +215,8 @@ exports.registerDoctor = async (req, res, next) => {
     next(error);
   }
 };
-//👍
+
+// Update Doctor Image
 exports.updateDoctorImage = async (req, res, next) => {
   try {
     const doctor = await Doctor.findOne({ userId: req.user._id });
@@ -185,14 +239,13 @@ exports.updateDoctorImage = async (req, res, next) => {
         console.log("✅ Old image deleted from Cloudinary");
       } catch (deleteError) {
         console.error("❌ Error deleting old image:", deleteError);
-        // Continue even if delete fails
       }
     }
 
-    // Update with new image
+    // ✅ Update with new image from Cloudinary
     doctor.profileImage = {
-      url: req.file.secure_url,
-      publicId: req.file.public_id,
+      url: req.file.path,
+      publicId: req.file.filename,
     };
 
     await doctor.save();
@@ -220,6 +273,7 @@ exports.updateDoctorImage = async (req, res, next) => {
     next(error);
   }
 };
+
 //👍
 exports.getAllDoctors = async (req, res, next) => {
   try {

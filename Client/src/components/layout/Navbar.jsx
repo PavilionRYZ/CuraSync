@@ -215,7 +215,7 @@ const Navbar = () => {
                                                 <motion.button
                                                     whileHover={{ backgroundColor: 'rgba(0, 0, 0, 0.05)' }}
                                                     onClick={() => {
-                                                        navigate('/dashboard');
+                                                        navigate('/admin/dashboard');
                                                         setIsProfileOpen(false);
                                                     }}
                                                     className="w-full px-4 py-2 flex items-center space-x-3 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-left"

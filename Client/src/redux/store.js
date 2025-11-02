@@ -19,10 +19,13 @@ const persistConfig = {
 
 //import reducers
 import authReducer from "./slices/authSlice";
-
+import doctorReducer from "./slices/doctroSlice";
+import clinicReducer from "./slices/clinicSlice";
 
 const rootReducer = combineReducers({
   auth: authReducer,
+  doctor: doctorReducer,
+  clinic: clinicReducer,
 });
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);

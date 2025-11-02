@@ -13,6 +13,8 @@ import NotFound from '../components/pages/NotFound';
 import Unauthorized from '../components/pages/Unauthorized';
 import ErrorPage from '../components/pages/Error'
 import Loading from '../components/pages/Loading'
+import AdminDashboard from '../components/pages/admin/AdminDashboard'
+import DoctorListing from '../components/pages/DoctorListing';
 // Protected Route
 import ProtectedRoute from '../components/lib/ProtectedRoute';
 import ErrorBoundary from '../components/ErrorBoundary';
@@ -39,16 +41,18 @@ const RoutesComponent = () => {
                     element={isAuthenticated ? <Navigate to="/dashboard" /> : <ForgotPassword />}
                 />
                 <Route path="/reset-password" element={<ResetPassword />} />
+                <Route path="/doctors" element={<DoctorListing />} />
 
                 {/* Protected Routes */}
                 <Route
-                    path="/dashboard"
+                    path="/admin/dashboard"
                     element={
-                        <ProtectedRoute>
-                            <div>Dashboard (Coming Soon)</div>
+                        <ProtectedRoute requiredRole="admin">
+                            <AdminDashboard />
                         </ProtectedRoute>
                     }
                 />
+
 
                 <Route path="/unauthorized" element={<Unauthorized />} />
                 <Route path="/error" element={<ErrorPage statusCode={500} />} />
