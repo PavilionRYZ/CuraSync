@@ -21,11 +21,13 @@ const persistConfig = {
 import authReducer from "./slices/authSlice";
 import doctorReducer from "./slices/doctroSlice";
 import clinicReducer from "./slices/clinicSlice";
+import availabilityReducer from "./slices/availabilitySlice";
 
 const rootReducer = combineReducers({
   auth: authReducer,
   doctor: doctorReducer,
   clinic: clinicReducer,
+  availability: availabilityReducer,
 });
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);

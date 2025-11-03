@@ -10,6 +10,7 @@ import {
     Menu,
     X,
     ChevronRight,
+    ContactRound
 } from 'lucide-react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
@@ -18,6 +19,7 @@ import DoctorManagement from './DoctorManagement';
 import DashboardOverview from './DashboardOverview';
 import ClinicManagement from './ClinicManagement';
 import AppointmentManagement from './AppointmentManagement';
+import AffiliationManagement from './AffiliationManagement';
 import AdminSettings from './Settings';
 
 const AdminDashboard = () => {
@@ -64,10 +66,17 @@ const AdminDashboard = () => {
             badge: 'Manage',
         },
         {
+            id: 'affiliations',
+            name: 'Affiliations',
+            icon: ContactRound,
+            label: 'Doctor-Clinic Affiliations',
+            badge: 'Manage',
+        },
+        {
             id: 'appointments',
             name: 'Appointments',
             icon: Calendar,
-            label: 'Manage Appointments',
+            label: 'Manage',
             badge: 'Soon',
         },
         {
@@ -250,13 +259,14 @@ const AdminDashboard = () => {
                         variants={containerVariants}
                         initial="hidden"
                         animate="visible"
-                        className="flex-1 overflow-auto p-6"
+                        className="flex-1 overflow-auto p-6 pb-24 min-h-[calc(100vh-4rem)]"
                     >
                         <AnimatePresence mode="wait">
                             {activeTab === 'overview' && <DashboardOverview />}
                             {activeTab === 'doctors' && <DoctorManagement />}
                             {activeTab === 'clinics' && <ClinicManagement />}
                             {activeTab === 'appointments' && <AppointmentManagement />}
+                            {activeTab === 'affiliations' && <AffiliationManagement />}
                             {activeTab === 'settings' && <AdminSettings />}
                         </AnimatePresence>
                     </motion.div>
